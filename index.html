@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FB Auto Comment รูปภาพ</title>
+<meta name="description" content="คอมเมนต์รูปภาพอัตโนมัติผ่าน Facebook Graph API">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0c0a09;--card:#1c1917;--border:#292524;--text:#e7e5e4;--muted:#78716c;--dim:#57534e;--accent:#f59e0b;--success:#22c55e;--danger:#ef4444}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans Thai',sans-serif;padding:16px 16px 60px;min-height:100vh;max-width:540px;margin:0 auto}
+a{color:var(--accent)}
+
+/* Card */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.card-head{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);font-weight:700;font-size:14px}
+.card-body{padding:16px 18px}
+
+/* Forms */
+.label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+input[type="text"],textarea{width:100%;padding:11px 14px;border-radius:8px;border:1px solid #44403c;background:var(--bg);color:var(--text);font-size:13px;outline:none;font-family:inherit}
+textarea{min-height:70px;resize:vertical}
+input:focus,textarea:focus{border-color:var(--accent)}
+
+/* Buttons */
+.btn{padding:12px 24px;border-radius:10px;border:none;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn-primary{background:var(--accent);color:var(--bg)}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-ghost{padding:8px 14px;border-radius:8px;background:0 0;border:1px solid #44403c;color:#a8a29e;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-ghost:hover{border-color:#78716c;color:#d6d3d1}
+.btn-full{width:100%}
+
+/* Badge */
+.badge{display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:700}
+.badge-green{background:#22c55e18;color:var(--success);border:1px solid #22c55e33}
+.badge-red{background:#ef444418;color:var(--danger);border:1px solid #ef444433}
+.badge-amber{background:#f59e0b18;color:var(--accent);border:1px solid #f59e0b33}
+code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);font-size:12px}
+
+/* Steps */
+.steps{display:flex;align-items:center;justify-content:center;margin-bottom:22px}
+.step-item{display:flex;flex-direction:column;align-items:center;gap:4px}
+.step-num{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+.step-num.done{background:var(--accent);color:var(--bg);border:2px solid var(--accent)}
+.step-num.active{background:#f59e0b22;color:var(--accent);border:2px solid var(--accent)}
+.step-num.inactive{background:var(--card);color:var(--dim);border:2px solid #44403c}
+.step-label{font-size:10px;font-weight:600;white-space:nowrap}
+.step-line{width:50px;height:2px;margin:0 8px;border-radius:1px;margin-bottom:18px}
+
+/* Saved pages */
+.saved-pages{margin-bottom:14px}
+.saved-title{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+.saved-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:all .2s;background:var(--bg)}
+.saved-item:hover{border-color:var(--accent);background:#f59e0b08}
+.saved-avatar{width:36px;height:36px;border-radius:50%;border:2px solid var(--border);overflow:hidden;flex-shrink:0;background:#292524;display:flex;align-items:center;justify-content:center;font-size:16px}
+.saved-avatar img{width:100%;height:100%;object-fit:cover}
+.saved-name{font-weight:600;font-size:13px;color:#d6d3d1}
+.saved-id{font-size:11px;color:var(--muted);font-family:monospace}
+.saved-date{font-size:10px;color:var(--dim)}
+.saved-remove{width:24px;height:24px;border-radius:50%;border:none;background:0 0;color:#57534e;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;margin-left:auto;flex-shrink:0}
+.saved-remove:hover{background:rgba(239,68,68,.15);color:#f87171}
+.auto-fetch{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;margin-top:10px;font-size:12px}
+.auto-fetch.loading{background:#f59e0b10;color:var(--accent)}
+.auto-fetch.found{background:#22c55e10;color:var(--success)}
+.auto-fetch.err{background:#ef444410;color:var(--danger)}
+
+/* Upload */
+.upload-zone{border:2px dashed #44403c;border-radius:12px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .25s;position:relative}
+.upload-zone:hover{border-color:var(--accent);background:#f59e0b08}
+.upload-zone.dragover{border-color:var(--accent);background:#f59e0b12}
+.upload-zone input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+/* Thumbs */
+.tg{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:14px}
+.ti{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:#292524;border:2px solid var(--border);transition:border-color .2s}
+.ti.sending{border-color:var(--accent)}.ti.ok{border-color:var(--success)}.ti.fail{border-color:var(--danger)}
+.ti img{width:100%;height:100%;object-fit:cover;display:block}
+.ti .tn{position:absolute;bottom:3px;left:3px;background:rgba(0,0,0,.75);color:#d6d3d1;font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px}
+.ti .tr{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.75);color:#f87171;border:none;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
+.ti:hover .tr{opacity:1}
+.ti .ts{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px}
+.ts.s-ok{background:rgba(34,197,94,.35)}.ts.s-fail{background:rgba(239,68,68,.35)}.ts.s-send{background:rgba(0,0,0,.5)}
+
+/* Log */
+.log-list{max-height:360px;overflow-y:auto}
+.log-item{display:flex;gap:10px;padding:9px 18px;border-bottom:1px solid #1a1816;align-items:center}
+.log-thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0}
+.log-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.log-icon.ok{background:#22c55e18;color:var(--success)}.log-icon.fail{background:#ef444418;color:var(--danger)}
+.log-pause{padding:8px 18px;font-size:12px;color:var(--accent);background:#f59e0b08;border-bottom:1px solid #1a1816}
+
+/* Progress */
+.pbar{height:6px;border-radius:3px;background:#292524;overflow:hidden}
+.pfill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--success));transition:width .4s ease}
+.done-banner{padding:16px 18px;text-align:center;border-top:1px solid var(--border);background:#22c55e08;font-size:14px;font-weight:700;color:var(--success)}
+.stats{display:flex;gap:10px;margin-top:14px}
+.stat-box{flex:1;background:var(--card);border-radius:12px;padding:12px 8px;text-align:center;border:1px solid var(--border)}
+.stat-val{font-size:22px;font-weight:800}
+.stat-label{font-size:11px;color:#64748b;font-weight:600}
+
+/* Toggle */
+.trow{display:flex;align-items:center;justify-content:space-between;padding:10px 0}
+.tlabel{font-size:13px;color:#d6d3d1}
+.tsub{font-size:11px;color:var(--muted);margin-top:2px}
+.tg-wrap{position:relative;width:44px;height:24px;flex-shrink:0}
+.tg-wrap input{opacity:0;width:0;height:0}
+.tg-wrap .sl{position:absolute;cursor:pointer;inset:0;background:#44403c;border-radius:24px;transition:.3s}
+.tg-wrap .sl:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#a8a29e;border-radius:50%;transition:.3s}
+.tg-wrap input:checked+.sl{background:var(--accent)}
+.tg-wrap input:checked+.sl:before{transform:translateX(20px);background:var(--bg)}
+.safe-card{background:#f59e0b08;border:1px solid #f59e0b22;border-radius:10px;padding:12px 14px;margin-top:12px}
+
+.row{display:flex;gap:8px;align-items:center}.flex1{flex:1}
+.page-info{display:flex;align-items:center;gap:12px}
+.page-avatar{width:44px;height:44px;border-radius:50%;border:2px solid var(--accent);object-fit:cover}
+.hidden{display:none!important}.mt{margin-top:14px}.mb{margin-bottom:14px}.center{text-align:center}
+.error-box{margin-top:10px;padding:8px 12px;border-radius:8px;background:#dc262615;color:#f87171;font-size:12px;border:1px solid #dc262633}
+.countdown-bar{padding:10px 18px;background:#f59e0b08;border-bottom:1px solid var(--border);font-size:13px;color:var(--accent);text-align:center;font-weight:600}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;animation:pulse 1s infinite;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2px solid #44403c;border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+.guide{background:#f59e0b08;border-color:#f59e0b22}
+.guide ol{padding-left:20px;font-size:12px;color:#a8a29e;line-height:2.2}
+.guide strong{color:#d6d3d1}
+</style>
+</head>
+<body>
+
+<div class="center mb">
+  <div style="font-size:11px;letter-spacing:5px;color:var(--accent);font-weight:700;margin-bottom:4px">FACEBOOK GRAPH API</div>
+  <h1 style="font-size:26px;font-weight:700;color:#fafaf9;line-height:1.3">คอมเมนต์รูปอัตโนมัติ</h1>
+  <p style="color:var(--muted);font-size:13px;margin-top:4px">เลือกรูปจากเครื่อง สูงสุด 30 รูป • ป้องกันโดนบล็อค</p>
+</div>
+<div class="steps" id="stepsBar"></div>
+
+<!-- ═══ STEP 1 ═══ -->
+<div class="card" id="card1">
+  <div class="card-head"><span>① เชื่อมต่อเพจ</span><span class="badge badge-green hidden" id="badge1">เชื่อมต่อแล้ว</span></div>
+  <div class="card-body" id="tokenForm">
+    <div id="savedSec" class="saved-pages hidden"><div class="saved-title">⭐ เพจที่บันทึกไว้</div><div id="savedList"></div></div>
+    <div class="label">Page Access Token</div>
+    <input type="text" id="tokenInput" placeholder="EAA... (จาก Graph API Explorer)">
+    <div id="autoBar" class="auto-fetch hidden"></div>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">สิทธิ์ที่ต้องมี: <code>pages_manage_posts</code> + <code>pages_read_engagement</code></p>
+    <div id="tokenErr" class="error-box hidden"></div>
+    <button class="btn btn-primary btn-full mt" id="verifyBtn" onclick="doVerify()">ตรวจสอบ Token</button>
+  </div>
+  <div class="card-body hidden" id="pageBox">
+    <div class="page-info">
+      <img id="pgAv" class="page-avatar" src="" alt="">
+      <div><div style="font-weight:700;font-size:15px" id="pgName"></div><div style="font-size:12px;color:var(--muted)" id="pgId"></div></div>
+      <button class="btn-ghost" style="margin-left:auto" onclick="doReset()">เปลี่ยน</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 2 ═══ -->
+<div class="card hidden" id="card2">
+  <div class="card-head"><span>② ใส่ Post ID</span><span class="badge badge-green hidden" id="badge2">ยืนยันแล้ว</span></div>
+  <div class="card-body" id="pidForm">
+    <div class="label">Post ID ของโพสต์ที่จะคอมเมนต์</div>
+    <input type="text" id="pidInput" placeholder="PAGE_ID_POST_ID หรือวาง URL โพสต์">
+    <button class="btn btn-primary btn-full mt" onclick="doSetPid()">✓ ยืนยัน</button>
+  </div>
+  <div class="card-body hidden" id="pidShow">
+    <div class="row"><span style="font-size:13px">Post ID:</span><code class="flex1" style="padding:4px 10px;border-radius:6px;overflow:hidden;text-overflow:ellipsis" id="pidText"></code><button class="btn-ghost" onclick="doResetPid()">เปลี่ยน</button></div>
+  </div>
+</div>
+
+<!-- ═══ STEP 3 ═══ -->
+<div class="card hidden" id="card3">
+  <div class="card-head"><span>③ เลือกรูป</span><span class="badge badge-amber" id="imgBadge">0 / 30</span></div>
+  <div class="card-body">
+    <div class="upload-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*" multiple>
+      <div style="font-size:36px;margin-bottom:8px">🖼️</div>
+      <div style="font-weight:600;font-size:14px;color:#d6d3d1">คลิกเลือกรูป หรือลากไฟล์มาวาง</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">JPG, PNG, WEBP • สูงสุด 30 รูป • 1 รูป = 1 คอมเมนต์</div>
+    </div>
+    <div class="tg" id="thumbGrid"></div>
+  </div>
+  <div style="padding:14px 18px;border-top:1px solid var(--border)">
+    <div class="row mb">
+      <span style="font-size:12px;color:var(--muted);font-weight:600">หน่วงเวลา:</span>
+      <input type="range" min="3" max="60" value="8" id="delayR" oninput="updDelay()" class="flex1" style="accent-color:var(--accent)">
+      <span id="delayV" style="background:#f59e0b18;color:var(--accent);padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;min-width:44px;text-align:center">8s</span>
+    </div>
+    <div class="trow">
+      <div><div class="tlabel">🛡️ เซฟโหมด (แนะนำ)</div><div class="tsub">สุ่มเวลา + พักทุก 10 รูป</div></div>
+      <label class="tg-wrap"><input type="checkbox" id="safeMode" checked><span class="sl"></span></label>
+    </div>
+    <div class="safe-card" id="safeBox">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px">🛡️ เซฟโหมดจะทำ:</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7">✓ สุ่มเวลาเพิ่ม 3-8 วินาที<br>✓ พักอัตโนมัติ 30-60 วินาที ทุก 10 รูป<br>✓ หยุดเมื่อเจอ Rate Limit</div>
+    </div>
+    <div style="margin-top:12px;padding:8px 12px;background:#292524;border-radius:8px;font-size:12px;color:var(--muted);text-align:center" id="estBox">เลือกรูปเพื่อดูเวลาโดยประมาณ</div>
+    <button class="btn btn-primary btn-full mt" id="startBtn" onclick="doStart()" style="font-size:15px;padding:14px 0">🚀 เริ่มคอมเมนต์ <span id="startN">0</span> รูป</button>
+    <button class="btn btn-danger btn-full hidden mt" id="stopBtn" onclick="doStop()" style="font-size:15px;padding:14px 0">⏹ หยุด</button>
+  </div>
+</div>
+
+<!-- ═══ LOG ═══ -->
+<div class="card hidden" id="card4">
+  <div class="card-head"><span>ผลลัพธ์</span><div class="row" style="gap:8px"><span class="badge badge-green" id="okBadge">สำเร็จ 0</span><span class="badge badge-red hidden" id="failBadge">ล้มเหลว 0</span></div></div>
+  <div style="padding:12px 18px 0"><div class="pbar"><div class="pfill" id="pFill" style="width:0%"></div></div><div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:right" id="pText">0 / 0</div></div>
+  <div id="sendInd" class="hidden" style="padding:6px 18px;font-size:12px;color:var(--accent)"><span class="pulse-dot"></span><span id="sendTxt"></span></div>
+  <div id="cdBar" class="countdown-bar hidden"></div>
+  <div class="log-list" id="logList"></div>
+  <div class="done-banner hidden" id="doneBan">🎉 <span id="doneTxt"></span></div>
+</div>
+<div class="stats hidden" id="statsRow">
+  <div class="stat-box"><div class="stat-val" style="color:var(--success)" id="sOk">0</div><div class="stat-label">สำเร็จ</div></div>
+  <div class="stat-box"><div class="stat-val" style="color:var(--danger)" id="sFail">0</div><div class="stat-label">ล้มเหลว</div></div>
+  <div class="stat-box"><div class="stat-val" style="color:#a8a29e" id="sPend">0</div><div class="stat-label">รอส่ง</div></div>
+</div>
+
+<!-- GUIDE -->
+<div class="card guide" style="margin-top:14px">
+  <div style="padding:14px 18px">
+    <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:8px">📖 วิธีใช้งาน</div>
+    <ol>
+      <li>สร้าง App ที่ <strong>developers.facebook.com</strong></li>
+      <li>เปิด <strong>Graph API Explorer</strong> → เลือก Page Token</li>
+      <li>เพิ่มสิทธิ์: <code>pages_manage_posts</code>, <code>pages_read_engagement</code></li>
+      <li>คัดลอก <strong>Post ID</strong> ของโพสต์ที่ต้องการคอมเมนต์</li>
+      <li>เลือกรูปจากเครื่อง → กดเริ่ม</li>
+    </ol>
+    <div style="margin-top:12px;padding:10px 14px;background:#292524;border-radius:8px;font-size:12px;color:#d6d3d1;line-height:1.8">
+      <strong style="color:var(--accent)">💡 หา Post ID:</strong> เปิดโพสต์ → คลิกขวาวันที่ → Copy Link<br>
+      <code>facebook.com/.../posts/123456</code> → <code>PAGE_ID_123456</code>
+    </div>
+    <div style="margin-top:10px;padding:10px 14px;background:#292524;border-radius:8px;font-size:12px;color:#d6d3d1;line-height:1.8">
+      <strong style="color:var(--danger)">⚠️ ป้องกันโดนบล็อค:</strong> เปิดเซฟโหมด + ตั้งหน่วงเวลา ≥5 วินาที<br>
+      ถ้าเจอ Error 368 = Rate Limit → หยุดรอ 1-2 ชม.
+    </div>
+  </div>
+</div>
+
+<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">
+  FB Auto Comment v1.0 • Token เก็บเฉพาะในเบราว์เซอร์ของคุณเท่านั้น
+</div>
+
+<script>
+const FB='https://graph.facebook.com/v19.0';
+let TK='',PG=null,PID='',STEP=1,STOP=false,RUNNING=false;
+let imgs=[],logs=[];
+let afTimer=null;
+
+const $=id=>document.getElementById(id);
+const show=el=>{(typeof el==='string'?$(el):el).classList.remove('hidden')};
+const hide=el=>{(typeof el==='string'?$(el):el).classList.add('hidden')};
+const sl=ms=>new Promise(r=>setTimeout(r,ms));
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+
+// ═══ LocalStorage ═══
+const LS={
+  get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
+  set(k,v){localStorage.setItem(k,JSON.stringify(v))},
+  del(k){localStorage.removeItem(k)}
+};
+
+// ═══ Steps ═══
+function renderSteps(){
+  const n=['เชื่อมต่อเพจ','ใส่ Post ID','คอมเมนต์รูป'];
+  let h='';n.forEach((t,i)=>{const num=i+1,cls=STEP>num?'done':STEP===num?'active':'inactive',bg=STEP>num?'var(--accent)':'var(--border)';
+  h+=`<div class="step-item"><div class="step-num ${cls}">${STEP>num?'✓':num}</div><span class="step-label" style="color:${STEP>=num?'#d6d3d1':'var(--dim)'}">${t}</span></div>`;
+  if(i<2)h+=`<div class="step-line" style="background:${bg}"></div>`;});
+  $('stepsBar').innerHTML=h;
+}
+
+// ═══ Saved Pages ═══
+function getPages(){return LS.get('fb_pages')||[]}
+function savePg(pg,tk){
+  const p=getPages(),idx=p.findIndex(x=>x.id===pg.id);
+  const e={id:pg.id,name:pg.name,pic:pg.picture||'',token:tk,date:new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})};
+  if(idx>=0)p[idx]=e;else p.unshift(e);if(p.length>10)p.length=10;
+  LS.set('fb_pages',p);return p;
+}
+function delPg(id){const p=getPages().filter(x=>x.id!==id);LS.set('fb_pages',p);renderPgs(p)}
+function renderPgs(p){
+  if(!p||!p.length){hide('savedSec');return}show('savedSec');
+  let h='';p.forEach(pg=>{
+  h+=`<div class="saved-item" onclick="usePg('${pg.id}')">
+    <div class="saved-avatar">${pg.pic?`<img src="${pg.pic}">`:'📄'}</div>
+    <div style="flex:1;min-width:0"><div class="saved-name">${pg.name}</div><div class="saved-id">${pg.id}</div><div class="saved-date">${pg.date}</div></div>
+    <button class="saved-remove" onclick="event.stopPropagation();delPg('${pg.id}')" title="ลบ">✕</button></div>`;
+  });$('savedList').innerHTML=h;
+}
+function usePg(id){const pg=getPages().find(x=>x.id===id);if(!pg)return;$('tokenInput').value=pg.token;doVerify()}
+
+// ═══ Auto-fetch ═══
+$('tokenInput').addEventListener('input',function(){
+  clearTimeout(afTimer);const v=this.value.trim();
+  if(!v||v.length<20){hide('autoBar');return}
+  afTimer=setTimeout(()=>doAutoFetch(v),600);
+});
+async function doAutoFetch(tk){
+  const b=$('autoBar');b.className='auto-fetch loading';b.innerHTML='<span class="spinner"></span> ดึงข้อมูลเพจ...';show(b);
+  try{
+    const r=await fetch(`${FB}/me?fields=id,name&access_token=${tk}`);const d=await r.json();
+    if(d.error){b.className='auto-fetch err';b.textContent='✗ '+d.error.message}
+    else{b.className='auto-fetch found';b.innerHTML=`✓ พบเพจ: <strong style="margin-left:4px">${d.name}</strong> <span style="color:var(--muted);margin-left:4px">(${d.id})</span>`}
+  }catch(e){b.className='auto-fetch err';b.textContent='✗ เชื่อมต่อไม่ได้'}
+}
+
+// ═══ STEP 1: Verify ═══
+async function doVerify(){
+  TK=$('tokenInput').value.trim();if(!TK)return;
+  $('verifyBtn').textContent='กำลังตรวจสอบ...';$('verifyBtn').disabled=true;hide('tokenErr');hide('autoBar');
+  try{
+    const r=await fetch(`${FB}/me?fields=id,name,picture.width(100)&access_token=${TK}`);const d=await r.json();
+    if(d.error){show('tokenErr');$('tokenErr').textContent=d.error.message}
+    else{
+      PG={id:d.id,name:d.name,picture:d.picture?.data?.url||''};
+      const p=savePg(PG,TK);renderPgs(p);
+      hide('tokenForm');show('pageBox');show('badge1');
+      $('pgName').textContent=PG.name;$('pgId').textContent='ID: '+PG.id;
+      if(PG.picture)$('pgAv').src=PG.picture;
+      // Restore post ID
+      const saved=LS.get('fb_postid');if(saved)$('pidInput').value=saved;
+      STEP=2;renderSteps();show('card2');
+    }
+  }catch(e){show('tokenErr');$('tokenErr').textContent='เชื่อมต่อไม่ได้: '+e.message}
+  $('verifyBtn').textContent='ตรวจสอบ Token';$('verifyBtn').disabled=false;
+}
+function doReset(){PG=null;TK='';PID='';STEP=1;imgs=[];
+  $('tokenInput').value='';show('tokenForm');hide('pageBox');hide('badge1');hide('autoBar');
+  hide('card2');hide('card3');hide('card4');hide('statsRow');
+  renderSteps();renderPgs(getPages());
+}
+
+// ═══ STEP 2: Post ID ═══
+function doSetPid(){
+  let v=$('pidInput').value.trim();if(!v)return;
+  const m1=v.match(/\/posts\/(\d+)/),m2=v.match(/story_fbid=(\d+)/),m3=v.match(/(\d+_\d+)/);
+  if(m1&&PG)v=PG.id+'_'+m1[1];else if(m2&&PG)v=PG.id+'_'+m2[1];else if(m3)v=m3[1];else if(/^\d+$/.test(v)&&PG)v=PG.id+'_'+v;
+  PID=v;LS.set('fb_postid',PID);
+  hide('pidForm');show('pidShow');show('badge2');$('pidText').textContent=PID;
+  STEP=3;renderSteps();show('card3');
+}
+function doResetPid(){PID='';show('pidForm');hide('pidShow');hide('badge2');hide('card3');hide('card4');hide('statsRow');STEP=2;renderSteps()}
+
+// ═══ STEP 3: Images ═══
+$('fileInput').addEventListener('change',function(e){addFiles(Array.from(e.target.files));this.value=''});
+const dz=$('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');addFiles(Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')))});
+
+function addFiles(fs){const rem=30-imgs.length;fs.slice(0,rem).forEach(f=>{imgs.push({file:f,preview:URL.createObjectURL(f),status:null,error:null})});renderThumbs();updEst()}
+function rmFile(i){if(imgs[i].status)return;URL.revokeObjectURL(imgs[i].preview);imgs.splice(i,1);renderThumbs();updEst()}
+function renderThumbs(){
+  $('imgBadge').textContent=imgs.length+' / 30';$('startN').textContent=imgs.length;
+  let h='';imgs.forEach((m,i)=>{let st='',bc='';
+    if(m.status==='sending'){st='<div class="ts s-send"><span class="spinner"></span></div>';bc='sending'}
+    else if(m.status==='ok'){st='<div class="ts s-ok">✓</div>';bc='ok'}
+    else if(m.status==='fail'){st='<div class="ts s-fail">✗</div>';bc='fail'}
+    h+=`<div class="ti ${bc}"><img src="${m.preview}"><span class="tn">${i+1}</span>${!m.status?`<button class="tr" onclick="rmFile(${i})">✕</button>`:''}${st}</div>`;
+  });$('thumbGrid').innerHTML=h;
+}
+
+function updDelay(){$('delayV').textContent=$('delayR').value+'s';updEst()}
+$('safeMode').addEventListener('change',function(){$('safeBox').style.display=this.checked?'block':'none';updEst()});
+function updEst(){
+  const n=imgs.length;if(!n){$('estBox').textContent='เลือกรูปเพื่อดูเวลาโดยประมาณ';return}
+  const base=+$('delayR').value,safe=$('safeMode').checked;
+  const avg=base+(safe?5.5:2),pauses=safe?Math.floor((n-1)/10):0;
+  const sec=Math.round(n*avg+pauses*45),m=Math.floor(sec/60),s=sec%60;
+  $('estBox').innerHTML=`⏱️ ประมาณ: <strong style="color:var(--accent)">${m>0?m+' นาที ':''}${s} วินาที</strong> (${n} รูป${safe?' + เซฟโหมด':''})`;
+}
+
+// ═══ RUN ═══
+async function cd(sec){
+  show('cdBar');for(let i=sec;i>0;i--){if(STOP)break;$('cdBar').textContent=`🛡️ พักอัตโนมัติ — รอ ${i} วินาที...`;await sl(1000)}hide('cdBar');
+}
+
+async function doStart(){
+  if(!PID||!imgs.length||RUNNING)return;
+  RUNNING=true;STOP=false;logs=[];
+  imgs.forEach(m=>{m.status=null;m.error=null});renderThumbs();
+  show('card4');show('statsRow');hide('startBtn');show('stopBtn');hide('doneBan');
+  $('logList').innerHTML='';
+  const base=+$('delayR').value*1000,safe=$('safeMode').checked,total=imgs.length;
+
+  for(let i=0;i<imgs.length;i++){
+    if(STOP)break;
+    // Pause every 10
+    if(safe&&i>0&&i%10===0){
+      const ps=rnd(30,60);addLog({type:'pause',text:`พักอัตโนมัติ ${ps} วินาที`});
+      await cd(ps);if(STOP)break;
+    }
+    imgs[i].status='sending';renderThumbs();
+    show('sendInd');$('sendTxt').textContent=`กำลังส่งรูปที่ ${i+1}/${total}...`;
+
+    const jitter=safe?rnd(3000,8000):rnd(1000,3000);
+    await sl(base+jitter);if(STOP)break;
+
+    let entry;
+    try{
+      const fd=new FormData();fd.append('source',imgs[i].file);fd.append('access_token',TK);
+      const r=await fetch(`${FB}/${PID}/comments`,{method:'POST',body:fd});const d=await r.json();
+      if(d.error){
+        imgs[i].status='fail';imgs[i].error=d.error.message;
+        entry={idx:i,ok:false,error:d.error.message,time:new Date().toLocaleTimeString('th-TH'),preview:imgs[i].preview};
+        if(d.error.code===368||d.error.code===32||(d.error.message||'').toLowerCase().includes('rate')){
+          addLog(entry);logs.push(entry);updStats(total);renderThumbs();
+          addLog({type:'pause',text:'⛔ Rate Limit — หยุดอัตโนมัติ'});STOP=true;break;
+        }
+      }else{imgs[i].status='ok';entry={idx:i,ok:true,time:new Date().toLocaleTimeString('th-TH'),preview:imgs[i].preview}}
+    }catch(e){imgs[i].status='fail';imgs[i].error=e.message;entry={idx:i,ok:false,error:e.message,time:new Date().toLocaleTimeString('th-TH'),preview:imgs[i].preview}}
+    renderThumbs();logs.push(entry);addLog(entry);updStats(total);
+  }
+  RUNNING=false;hide('sendInd');hide('cdBar');hide('stopBtn');show('startBtn');
+  if(logs.length>=total){const ok=logs.filter(l=>l.ok).length;show('doneBan');$('doneTxt').textContent=`เสร็จสิ้น! สำเร็จ ${ok}/${total}`}
+}
+function doStop(){STOP=true;RUNNING=false;hide('sendInd');hide('cdBar');hide('stopBtn');show('startBtn')}
+
+function addLog(e){
+  const el=$('logList');
+  if(e.type==='pause'){el.innerHTML+=`<div class="log-pause">🛡️ ${e.text}</div>`}
+  else{el.innerHTML+=`<div class="log-item"><img src="${e.preview}" class="log-thumb"><span class="log-icon ${e.ok?'ok':'fail'}">${e.ok?'✓':'✗'}</span>
+    <div style="flex:1;min-width:0"><div style="font-size:13px;color:#d6d3d1">รูปที่ ${e.idx+1}</div>
+    <div style="font-size:11px;color:var(--dim);margin-top:2px">${e.time}${e.error?`<span style="color:#f87171;margin-left:6px">— ${e.error}</span>`:''}</div></div></div>`}
+  el.scrollTop=el.scrollHeight;
+}
+function updStats(t){
+  const ok=logs.filter(l=>l.ok).length,fail=logs.filter(l=>!l.ok).length,pend=t-logs.length,pct=t>0?(logs.length/t*100):0;
+  $('pFill').style.width=pct+'%';$('pText').textContent=`${logs.length} / ${t}`;
+  $('okBadge').textContent=`สำเร็จ ${ok}`;$('failBadge').textContent=`ล้มเหลว ${fail}`;
+  if(fail>0)show('failBadge');else hide('failBadge');
+  $('sOk').textContent=ok;$('sFail').textContent=fail;$('sPend').textContent=pend;
+}
+
+// ═══ Init ═══
+renderSteps();renderPgs(getPages());
+</script>
+</body>
+</html>
