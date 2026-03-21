@@ -184,8 +184,8 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
     <!-- Manual input -->
     <div id="manualPanel" class="hidden">
       <div class="label">วาง Post ID ได้หลายรายการ คั่นด้วย Enter</div>
-      <textarea id="pidInput" placeholder="วาง Post ID หรือ URL โพสต์&#10;https://facebook.com/page/posts/111&#10;https://facebook.com/photo?fbid=222&#10;927407257134006_2002166111181945"></textarea>
-      <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">รองรับ: URL โพสต์, URL รูปภาพ, Post ID ตรงๆ</p>
+      <textarea id="pidInput" placeholder="วางแค่ตัวเลข Post ID ได้เลย เช่น&#10;2002166111181945&#10;111222333444&#10;หรือวาง URL ก็ได้"></textarea>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">วางแค่ตัวเลข Post ID ได้เลย ระบบเติม Page ID ให้อัตโนมัติ</p>
       <button class="btn btn-primary btn-full mt" onclick="addToQueue()">+ เพิ่มเข้าคิว</button>
     </div>
   </div>
@@ -362,7 +362,7 @@ function renderBrowse(){
       <div style="flex:1;min-width:0">
         <div class="bp-text">${msg}</div>
         <div class="bp-meta">${typeTag} ${date}</div>
-        <div style="font-size:10px;color:var(--dim);margin-top:2px;font-family:monospace">${p.id}</div>
+        <div style="font-size:10px;color:var(--dim);margin-top:2px;font-family:monospace">ID: ${p.id.includes('_')?p.id.split('_').pop():p.id}</div>
       </div>
     </div>`;
   });
@@ -449,7 +449,7 @@ function renderQueue(){
     if(q.status==='running'){numCls='q-run';statusTxt='<span style="color:var(--accent)"><span class="spinner" style="width:12px;height:12px"></span></span>';active='q-active'}
     else if(q.status==='done'){numCls='q-ok';statusTxt=`<span style="color:var(--success)">✓ ${q.ok}/${q.ok+q.fail}</span>`;active='q-done'}
     else if(q.status==='fail'){numCls='q-fail';statusTxt=`<span style="color:var(--danger)">✗ ล้มเหลว</span>`;active='q-done'}
-    h+=`<div class="q-item ${active}"><span class="q-num ${numCls}">${q.status==='running'?'▶':q.status==='done'?'✓':q.status==='fail'?'✗':i+1}</span><span class="q-id" title="${q.id}">${q.id}</span><span class="q-status">${statusTxt}</span>${!RUNNING?`<button class="q-remove" onclick="removeFromQueue(${i})">✕</button>`:''}</div>`;
+    h+=`<div class="q-item ${active}"><span class="q-num ${numCls}">${q.status==='running'?'▶':q.status==='done'?'✓':q.status==='fail'?'✗':i+1}</span><span class="q-id" title="${q.id}">${q.id.includes('_')?q.id.split('_').pop():q.id}</span><span class="q-status">${statusTxt}</span>${!RUNNING?`<button class="q-remove" onclick="removeFromQueue(${i})">✕</button>`:''}</div>`;
   });
   $('queueList').innerHTML=h;
   const done=queue.filter(q=>q.status==='done').length;
@@ -574,7 +574,7 @@ function doStop(){STOP=true;RUNNING=false;hide('sendInd');hide('cdBar');hide('st
 function addLog(e){
   const el=$('logList');
   if(e.type==='pause'){el.innerHTML+=`<div class="log-pause">🛡️ ${e.text}</div>`}
-  else if(e.type==='post-header'){el.innerHTML+=`<div class="log-post-header">📌 ${e.text} <code style="font-size:11px;margin-left:4px;opacity:.7">${e.id.substring(0,24)}...</code></div>`}
+  else if(e.type==='post-header'){el.innerHTML+=`<div class="log-post-header">📌 ${e.text} <code style="font-size:11px;margin-left:4px;opacity:.7">${e.id.includes('_')?e.id.split('_').pop():e.id}</code></div>`}
   else{el.innerHTML+=`<div class="log-item"><img src="${e.preview}" class="log-thumb"><span class="log-icon ${e.ok?'ok':'fail'}">${e.ok?'✓':'✗'}</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:#d6d3d1">โพสต์ ${e.postNum} • รูปที่ ${e.idx+1}</div><div style="font-size:11px;color:var(--dim);margin-top:2px">${e.time}${e.error?`<span style="color:#f87171;margin-left:6px">— ${e.error}</span>`:''}</div></div></div>`}
   el.scrollTop=el.scrollHeight;
 }
