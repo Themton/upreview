@@ -143,7 +143,8 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
   <div class="card-head"><span>② คิวโพสต์</span><span class="badge badge-amber" id="qBadge">0 โพสต์</span></div>
   <div class="card-body">
     <div class="label">เพิ่ม Post ID (วางได้หลายรายการ คั่นด้วย Enter)</div>
-    <textarea id="pidInput" placeholder="วาง Post ID หรือ URL โพสต์ ได้หลายบรรทัด เช่น&#10;https://facebook.com/page/posts/111&#10;https://facebook.com/page/posts/222&#10;123456_333444"></textarea>
+    <textarea id="pidInput" placeholder="วาง Post ID หรือ URL โพสต์ ได้หลายบรรทัด เช่น&#10;https://facebook.com/page/posts/111&#10;https://facebook.com/photo?fbid=222&#10;https://facebook.com/page/photos/a.123/444&#10;927407257134006_2002166111181945"></textarea>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">รองรับ: URL โพสต์, URL รูปภาพ, Post ID ตรงๆ — ระบบตรวจสอบอัตโนมัติก่อนเพิ่ม</p>
     <button class="btn btn-primary btn-full mt" onclick="addToQueue()">+ เพิ่มเข้าคิว</button>
   </div>
   <div id="queueList"></div>
@@ -212,12 +213,18 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
       <li>เลือกรูปจากเครื่อง → กดเริ่ม (ระบบทำทีละโพสต์)</li>
     </ol>
     <div style="margin-top:12px;padding:10px 14px;background:#292524;border-radius:8px;font-size:12px;color:#d6d3d1;line-height:1.8">
-      <strong style="color:var(--accent)">💡 หา Post ID:</strong> เปิดโพสต์ → คลิกขวาวันที่ → Copy Link<br>
-      <code>facebook.com/.../posts/123456</code> → <code>PAGE_ID_123456</code>
+      <strong style="color:var(--accent)">💡 หา Post ID:</strong><br>
+      1. เปิดโพสต์/รูป → คลิกขวาที่วันที่ → Copy Link<br>
+      2. วาง URL ลงมาได้เลย ระบบแปลงให้อัตโนมัติ<br>
+      <strong style="color:var(--accent)">URL ที่รองรับ:</strong><br>
+      <code>facebook.com/.../posts/123456</code><br>
+      <code>facebook.com/photo?fbid=123456</code><br>
+      <code>facebook.com/.../photos/a.xxx/123456</code><br>
+      <code>PAGE_ID_POST_ID</code> (วางตรงๆ)
     </div>
   </div>
 </div>
-<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v2.0 • Multi-Post Queue • Token เก็บเฉพาะในเบราว์เซอร์</div>
+<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v2.1 • Multi-Post Queue • ตรวจสอบ Post ID อัตโนมัติ</div>
 
 <script>
 const FB='https://graph.facebook.com/v19.0';
@@ -257,17 +264,53 @@ function doReset(){PG=null;TK='';STEP=1;imgs=[];queue=[];$('tokenInput').value='
 
 // ═══ STEP 2: QUEUE ═══
 function parsePid(v){
-  const m1=v.match(/\/posts\/(\d+)/),m2=v.match(/story_fbid=(\d+)/),m3=v.match(/(\d+_\d+)/);
-  if(m1&&PG)return PG.id+'_'+m1[1];if(m2&&PG)return PG.id+'_'+m2[1];if(m3)return m3[1];if(/^\d+$/.test(v)&&PG)return PG.id+'_'+v;return v;
+  v=v.replace(/\s+/g,'');
+  const m1=v.match(/\/posts\/(\d+)/);
+  const m2=v.match(/story_fbid=(\d+)/);
+  const m3=v.match(/fbid=(\d+)/);
+  const m4=v.match(/\/photos\/[^/]+\/(\d+)/);
+  const m5=v.match(/\/photo\/?\?fbid=(\d+)/);
+  const m6=v.match(/(\d+_\d+)/);
+  if(m1&&PG)return PG.id+'_'+m1[1];
+  if(m2&&PG)return PG.id+'_'+m2[1];
+  if(m5&&PG)return PG.id+'_'+m5[1];
+  if(m3&&PG)return PG.id+'_'+m3[1];
+  if(m4&&PG)return PG.id+'_'+m4[1];
+  if(m6)return m6[1];
+  if(/^\d+$/.test(v)&&PG)return PG.id+'_'+v;
+  return v;
 }
-function addToQueue(){
+async function verifyPid(pid){
+  try{
+    const r=await fetch(`${FB}/${pid}?fields=id&access_token=${TK}`);
+    const d=await r.json();
+    return !d.error;
+  }catch(e){return false}
+}
+async function addToQueue(){
   const raw=$('pidInput').value.trim();if(!raw)return;
   const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l);
-  lines.forEach(line=>{
+  const btn=document.querySelector('#card2 .btn-primary');
+  btn.textContent='กำลังตรวจสอบ...';btn.disabled=true;
+  let added=0,failed=[];
+  for(const line of lines){
     const pid=parsePid(line);
-    if(pid&&!queue.find(q=>q.id===pid)){queue.push({id:pid,status:'wait',ok:0,fail:0})}
-  });
-  $('pidInput').value='';
+    if(!pid||queue.find(q=>q.id===pid))continue;
+    const ok=await verifyPid(pid);
+    if(ok){queue.push({id:pid,status:'wait',ok:0,fail:0});added++}
+    else{failed.push(pid)}
+  }
+  btn.textContent='+ เพิ่มเข้าคิว';btn.disabled=false;
+  if(failed.length){
+    const el=document.createElement('div');
+    el.className='error-box';el.style.marginTop='10px';
+    el.innerHTML='❌ Post ID ไม่ถูกต้อง '+failed.length+' รายการ:<br>'+failed.map(f=>'<code style="font-size:11px">'+f+'</code>').join('<br>');
+    const cb=$('pidInput').parentElement;
+    const old=cb.querySelector('.error-box');if(old)old.remove();
+    cb.appendChild(el);
+    setTimeout(()=>el.remove(),8000);
+  }
+  if(added>0)$('pidInput').value='';
   renderQueue();
   if(queue.length>0&&STEP<3){STEP=3;renderSteps();show('card3')}
 }
