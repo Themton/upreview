@@ -106,6 +106,18 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
 .q-remove{width:22px;height:22px;border-radius:50%;border:none;background:0 0;color:#57534e;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .q-remove:hover{background:rgba(239,68,68,.15);color:#f87171}
 .q-overall{padding:10px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+
+/* Browse posts */
+.bp-item{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid #1a1816;cursor:pointer;transition:background .2s;align-items:flex-start}
+.bp-item:hover{background:#f59e0b08}
+.bp-item.selected{background:#f59e0b12;border-left:3px solid var(--accent)}
+.bp-check{width:20px;height:20px;border-radius:4px;border:2px solid #44403c;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .2s}
+.bp-item.selected .bp-check{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.bp-thumb{width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#292524}
+.bp-text{flex:1;min-width:0;font-size:12px;color:#d6d3d1;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bp-meta{font-size:11px;color:var(--dim);margin-top:3px}
+.bp-type{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600}
+.bp-type.ad{background:#8b5cf618;color:#a78bfa}.bp-type.post{background:#3b82f618;color:#60a5fa}.bp-type.photo{background:#22c55e18;color:#4ade80}
 </style>
 </head>
 <body>
@@ -113,7 +125,7 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
 <div class="center mb">
   <div style="font-size:11px;letter-spacing:5px;color:var(--accent);font-weight:700;margin-bottom:4px">FACEBOOK GRAPH API</div>
   <h1 style="font-size:26px;font-weight:700;color:#fafaf9;line-height:1.3">คอมเมนต์รูปอัตโนมัติ</h1>
-  <p style="color:var(--muted);font-size:13px;margin-top:4px">หลายโพสต์พร้อมกัน • รอคิวอัตโนมัติ • ป้องกันโดนบล็อค</p>
+  <p style="color:var(--muted);font-size:13px;margin-top:4px">ค้นหาโพสต์จากเพจ • หลายโพสต์รอคิว • ป้องกันโดนบล็อค</p>
 </div>
 <div class="steps" id="stepsBar"></div>
 
@@ -125,7 +137,7 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
     <div class="label">Page Access Token</div>
     <input type="text" id="tokenInput" placeholder="EAA... (จาก Graph API Explorer)">
     <div id="autoBar" class="auto-fetch hidden"></div>
-    <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">สิทธิ์ที่ต้องมี: <code>pages_manage_posts</code> + <code>pages_read_engagement</code></p>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">สิทธิ์ที่ต้องมี: <code>pages_manage_posts</code> + <code>pages_read_engagement</code><br>ค้นหาโฆษณาเพิ่ม: <code>ads_management</code> หรือ <code>ads_read</code></p>
     <div id="tokenErr" class="error-box hidden"></div>
     <button class="btn btn-primary btn-full mt" id="verifyBtn" onclick="doVerify()">ตรวจสอบ Token</button>
   </div>
@@ -142,10 +154,40 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
 <div class="card hidden" id="card2">
   <div class="card-head"><span>② คิวโพสต์</span><span class="badge badge-amber" id="qBadge">0 โพสต์</span></div>
   <div class="card-body">
-    <div class="label">เพิ่ม Post ID (วางได้หลายรายการ คั่นด้วย Enter)</div>
-    <textarea id="pidInput" placeholder="วาง Post ID หรือ URL โพสต์ ได้หลายบรรทัด เช่น&#10;https://facebook.com/page/posts/111&#10;https://facebook.com/photo?fbid=222&#10;https://facebook.com/page/photos/a.123/444&#10;927407257134006_2002166111181945"></textarea>
-    <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">รองรับ: URL โพสต์, URL รูปภาพ, Post ID ตรงๆ — ระบบตรวจสอบอัตโนมัติก่อนเพิ่ม</p>
-    <button class="btn btn-primary btn-full mt" onclick="addToQueue()">+ เพิ่มเข้าคิว</button>
+    <!-- Tab buttons -->
+    <div class="row mb" style="gap:6px">
+      <button class="btn-ghost" id="tabBrowse" onclick="switchTab('browse')" style="flex:1;text-align:center;padding:10px;font-weight:700;border-color:var(--accent);color:var(--accent)">🔍 ค้นหาจากเพจ</button>
+      <button class="btn-ghost" id="tabManual" onclick="switchTab('manual')" style="flex:1;text-align:center;padding:10px">📝 วาง Post ID</button>
+    </div>
+
+    <!-- Browse from page -->
+    <div id="browsePanel">
+      <div class="row mb" style="gap:6px">
+        <button class="btn btn-primary flex1" onclick="fetchPosts('feed')" style="padding:10px;font-size:13px">โพสต์ทั้งหมด</button>
+        <button class="btn btn-primary flex1" onclick="fetchPosts('ads_posts')" style="padding:10px;font-size:13px;background:#8b5cf6">โพสต์โฆษณา</button>
+        <button class="btn btn-primary flex1" onclick="fetchPosts('photos')" style="padding:10px;font-size:13px;background:#3b82f6">รูปภาพ</button>
+      </div>
+      <div id="browseLoading" class="hidden" style="text-align:center;padding:20px"><span class="spinner"></span> <span style="font-size:13px;color:var(--muted);margin-left:8px">กำลังดึงโพสต์...</span></div>
+      <div id="browseError" class="error-box hidden"></div>
+      <div id="browseList"></div>
+      <div id="browseMore" class="hidden" style="padding:10px;text-align:center">
+        <button class="btn-ghost" onclick="fetchMore()" style="padding:8px 20px">โหลดเพิ่มเติม...</button>
+      </div>
+      <div id="browseActions" class="hidden" style="padding:10px 0">
+        <div class="row" style="gap:8px">
+          <button class="btn-ghost flex1" onclick="selectAllBrowse()" style="text-align:center">เลือกทั้งหมด</button>
+          <button class="btn btn-primary flex1" onclick="addSelectedToQueue()" style="padding:10px">+ เพิ่มที่เลือกเข้าคิว (<span id="selectedCount">0</span>)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual input -->
+    <div id="manualPanel" class="hidden">
+      <div class="label">วาง Post ID ได้หลายรายการ คั่นด้วย Enter</div>
+      <textarea id="pidInput" placeholder="วาง Post ID หรือ URL โพสต์&#10;https://facebook.com/page/posts/111&#10;https://facebook.com/photo?fbid=222&#10;927407257134006_2002166111181945"></textarea>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">รองรับ: URL โพสต์, URL รูปภาพ, Post ID ตรงๆ</p>
+      <button class="btn btn-primary btn-full mt" onclick="addToQueue()">+ เพิ่มเข้าคิว</button>
+    </div>
   </div>
   <div id="queueList"></div>
   <div id="qOverall" class="q-overall hidden">
@@ -209,7 +251,7 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
       <li>สร้าง App ที่ <strong>developers.facebook.com</strong></li>
       <li>เปิด <strong>Graph API Explorer</strong> → เลือก Page Token</li>
       <li>เพิ่มสิทธิ์: <code>pages_manage_posts</code>, <code>pages_read_engagement</code></li>
-      <li>คัดลอก <strong>Post ID</strong> หลายโพสต์ → เพิ่มเข้าคิว</li>
+      <li><b>ค้นหาจากเพจ</b> → เลือกโพสต์/โฆษณา/รูปภาพ เพิ่มเข้าคิว</li>
       <li>เลือกรูปจากเครื่อง → กดเริ่ม (ระบบทำทีละโพสต์)</li>
     </ol>
     <div style="margin-top:12px;padding:10px 14px;background:#292524;border-radius:8px;font-size:12px;color:#d6d3d1;line-height:1.8">
@@ -224,7 +266,7 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
     </div>
   </div>
 </div>
-<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v2.1 • Multi-Post Queue • ตรวจสอบ Post ID อัตโนมัติ</div>
+<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v3.0 • ค้นหาโพสต์จากเพจ • Multi-Post Queue</div>
 
 <script>
 const FB='https://graph.facebook.com/v19.0';
@@ -263,6 +305,79 @@ async function doVerify(){TK=$('tokenInput').value.trim();if(!TK)return;$('verif
 function doReset(){PG=null;TK='';STEP=1;imgs=[];queue=[];$('tokenInput').value='';show('tokenForm');hide('pageBox');hide('badge1');hide('autoBar');hide('card2');hide('card3');hide('card4');hide('statsRow');renderSteps();renderPgs(getPages())}
 
 // ═══ STEP 2: QUEUE ═══
+// Tab switching
+function switchTab(tab){
+  if(tab==='browse'){show('browsePanel');hide('manualPanel');$('tabBrowse').style.borderColor='var(--accent)';$('tabBrowse').style.color='var(--accent)';$('tabManual').style.borderColor='#44403c';$('tabManual').style.color='#a8a29e'}
+  else{hide('browsePanel');show('manualPanel');$('tabManual').style.borderColor='var(--accent)';$('tabManual').style.color='var(--accent)';$('tabBrowse').style.borderColor='#44403c';$('tabBrowse').style.color='#a8a29e'}
+}
+
+// Browse posts from page
+let browseData=[],browseNext=null,browseType='';
+async function fetchPosts(type){
+  browseType=type;browseData=[];browseNext=null;
+  $('browseList').innerHTML='';hide('browseMore');hide('browseActions');hide('browseError');show('browseLoading');
+  let url;
+  if(type==='ads_posts')url=`${FB}/${PG.id}/ads_posts?fields=id,message,created_time,full_picture,is_published,status_type&limit=20&access_token=${TK}`;
+  else if(type==='photos')url=`${FB}/${PG.id}/photos?type=uploaded&fields=id,name,created_time,images,link&limit=20&access_token=${TK}`;
+  else url=`${FB}/${PG.id}/feed?fields=id,message,created_time,full_picture,type,status_type,is_published&limit=20&access_token=${TK}`;
+  try{
+    const r=await fetch(url);const d=await r.json();
+    hide('browseLoading');
+    if(d.error){show('browseError');$('browseError').textContent='❌ '+d.error.message;
+      if(type==='ads_posts')$('browseError').textContent+=' (ต้องมีสิทธิ์ ads_management)';
+      return}
+    if(!d.data||!d.data.length){$('browseList').innerHTML='<div style="text-align:center;padding:20px;color:var(--dim);font-size:13px">ไม่พบโพสต์</div>';return}
+    browseData=d.data.map(p=>({...p,selected:false}));
+    browseNext=d.paging?.next||null;
+    renderBrowse();
+    if(browseNext)show('browseMore');
+    show('browseActions');
+  }catch(e){hide('browseLoading');show('browseError');$('browseError').textContent='❌ '+e.message}
+}
+async function fetchMore(){
+  if(!browseNext)return;
+  hide('browseMore');show('browseLoading');
+  try{
+    const r=await fetch(browseNext);const d=await r.json();
+    hide('browseLoading');
+    if(d.data){d.data.forEach(p=>browseData.push({...p,selected:false}));browseNext=d.paging?.next||null;renderBrowse();if(browseNext)show('browseMore')}
+  }catch(e){hide('browseLoading')}
+}
+function renderBrowse(){
+  let h='';
+  browseData.forEach((p,i)=>{
+    const sel=p.selected?'selected':'';
+    const thumb=p.full_picture||p.images?.[0]?.source||'';
+    const thumbHtml=thumb?`<img src="${thumb}" class="bp-thumb" loading="lazy">`:`<div class="bp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">📄</div>`;
+    const msg=(p.message||p.name||'(ไม่มีข้อความ)').substring(0,80);
+    const date=p.created_time?new Date(p.created_time).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    let typeTag='';
+    if(browseType==='ads_posts')typeTag='<span class="bp-type ad">โฆษณา</span>';
+    else if(browseType==='photos')typeTag='<span class="bp-type photo">รูปภาพ</span>';
+    else if(p.status_type==='added_photos')typeTag='<span class="bp-type photo">รูปภาพ</span>';
+    else typeTag='<span class="bp-type post">โพสต์</span>';
+    h+=`<div class="bp-item ${sel}" onclick="toggleBrowse(${i})">
+      <div class="bp-check">${p.selected?'✓':''}</div>
+      ${thumbHtml}
+      <div style="flex:1;min-width:0">
+        <div class="bp-text">${msg}</div>
+        <div class="bp-meta">${typeTag} ${date}</div>
+        <div style="font-size:10px;color:var(--dim);margin-top:2px;font-family:monospace">${p.id}</div>
+      </div>
+    </div>`;
+  });
+  $('browseList').innerHTML=h;
+  updSelectedCount();
+}
+function toggleBrowse(i){browseData[i].selected=!browseData[i].selected;renderBrowse()}
+function selectAllBrowse(){const allSel=browseData.every(p=>p.selected);browseData.forEach(p=>p.selected=!allSel);renderBrowse()}
+function updSelectedCount(){$('selectedCount').textContent=browseData.filter(p=>p.selected).length}
+function addSelectedToQueue(){
+  const sel=browseData.filter(p=>p.selected);
+  sel.forEach(p=>{if(!queue.find(q=>q.id===p.id))queue.push({id:p.id,status:'wait',ok:0,fail:0})});
+  browseData.forEach(p=>p.selected=false);renderBrowse();renderQueue();
+  if(queue.length>0&&STEP<3){STEP=3;renderSteps();show('card3')}
+}
 function parsePid(v){
   v=v.replace(/\s+/g,'');
   const m1=v.match(/\/posts\/(\d+)/);
