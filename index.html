@@ -118,6 +118,13 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
 .bp-meta{font-size:11px;color:var(--dim);margin-top:3px}
 .bp-type{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600}
 .bp-type.ad{background:#8b5cf618;color:#a78bfa}.bp-type.post{background:#3b82f618;color:#60a5fa}.bp-type.photo{background:#22c55e18;color:#4ade80}
+
+/* Albums */
+.album-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1a1816;cursor:pointer;transition:background .2s}
+.album-item:hover{background:#ec489908}
+.album-cover{width:50px;height:50px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#292524}
+.album-name{font-weight:600;font-size:13px;color:#d6d3d1}
+.album-count{font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -163,9 +170,15 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
     <!-- Browse from page -->
     <div id="browsePanel">
       <div class="row mb" style="gap:6px">
-        <button class="btn btn-primary flex1" onclick="fetchPosts('feed')" style="padding:10px;font-size:13px">โพสต์ทั้งหมด</button>
-        <button class="btn btn-primary flex1" onclick="fetchPosts('ads_posts')" style="padding:10px;font-size:13px;background:#8b5cf6">โพสต์โฆษณา</button>
-        <button class="btn btn-primary flex1" onclick="fetchPosts('photos')" style="padding:10px;font-size:13px;background:#3b82f6">รูปภาพ</button>
+        <button class="btn btn-primary flex1" onclick="fetchPosts('feed')" style="padding:10px;font-size:12px">โพสต์ทั้งหมด</button>
+        <button class="btn btn-primary flex1" onclick="fetchPosts('ads_posts')" style="padding:10px;font-size:12px;background:#8b5cf6">โฆษณา</button>
+        <button class="btn btn-primary flex1" onclick="fetchPosts('photos')" style="padding:10px;font-size:12px;background:#3b82f6">รูปภาพ</button>
+        <button class="btn btn-primary flex1" onclick="fetchAlbums()" style="padding:10px;font-size:12px;background:#ec4899">อัลบั้ม</button>
+      </div>
+      <!-- Album list (shown when clicking อัลบั้ม) -->
+      <div id="albumPanel" class="hidden">
+        <div id="albumList"></div>
+        <div id="albumBack" class="hidden" style="padding:8px 0"><button class="btn-ghost btn-full" onclick="backToAlbums()" style="text-align:center">← กลับไปเลือกอัลบั้ม</button></div>
       </div>
       <div id="browseLoading" class="hidden" style="text-align:center;padding:20px"><span class="spinner"></span> <span style="font-size:13px;color:var(--muted);margin-left:8px">กำลังดึงโพสต์...</span></div>
       <div id="browseError" class="error-box hidden"></div>
@@ -198,13 +211,13 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
 
 <!-- ═══ STEP 3 ═══ -->
 <div class="card hidden" id="card3">
-  <div class="card-head"><span>③ เลือกรูป</span><span class="badge badge-amber" id="imgBadge">0 / 30</span></div>
+  <div class="card-head"><span>③ เลือกรูป</span><span class="badge badge-amber" id="imgBadge">0 / 60</span></div>
   <div class="card-body">
     <div class="upload-zone" id="dropZone">
       <input type="file" id="fileInput" accept="image/*" multiple>
       <div style="font-size:36px;margin-bottom:8px">🖼️</div>
       <div style="font-weight:600;font-size:14px;color:#d6d3d1">คลิกเลือกรูป หรือลากไฟล์มาวาง</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">JPG, PNG, WEBP • สูงสุด 30 รูป • ใช้รูปชุดเดียวกับทุกโพสต์</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">JPG, PNG, WEBP • สูงสุด 60 รูป • ใช้รูปชุดเดียวกับทุกโพสต์</div>
     </div>
     <div class="tg" id="thumbGrid"></div>
   </div>
@@ -266,7 +279,7 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
     </div>
   </div>
 </div>
-<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v3.0 • ค้นหาโพสต์จากเพจ • Multi-Post Queue</div>
+<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v3.2 • อัลบั้ม + 60 รูป • ค้นหาจากเพจ</div>
 
 <script>
 const FB='https://graph.facebook.com/v19.0';
@@ -315,7 +328,7 @@ function switchTab(tab){
 let browseData=[],browseNext=null,browseType='';
 async function fetchPosts(type){
   browseType=type;browseData=[];browseNext=null;
-  $('browseList').innerHTML='';hide('browseMore');hide('browseActions');hide('browseError');show('browseLoading');
+  $('browseList').innerHTML='';hide('browseMore');hide('browseActions');hide('browseError');show('browseLoading');hide('albumPanel');
   let url;
   if(type==='ads_posts')url=`${FB}/${PG.id}/ads_posts?fields=id,message,created_time,full_picture,is_published,status_type&limit=20&access_token=${TK}`;
   else if(type==='photos')url=`${FB}/${PG.id}/photos?type=uploaded&fields=id,name,created_time,images,link&limit=20&access_token=${TK}`;
@@ -377,6 +390,51 @@ function addSelectedToQueue(){
   sel.forEach(p=>{if(!queue.find(q=>q.id===p.id))queue.push({id:p.id,status:'wait',ok:0,fail:0})});
   browseData.forEach(p=>p.selected=false);renderBrowse();renderQueue();
   if(queue.length>0&&STEP<3){STEP=3;renderSteps();show('card3')}
+}
+
+// ═══ Albums ═══
+let albumsData=[];
+async function fetchAlbums(){
+  browseData=[];$('browseList').innerHTML='';hide('browseMore');hide('browseActions');hide('browseError');hide('albumBack');
+  show('albumPanel');show('browseLoading');
+  $('albumList').innerHTML='';
+  try{
+    const r=await fetch(`${FB}/${PG.id}/albums?fields=id,name,count,cover_photo{images},created_time&limit=50&access_token=${TK}`);
+    const d=await r.json();hide('browseLoading');
+    if(d.error){show('browseError');$('browseError').textContent='❌ '+d.error.message;return}
+    if(!d.data||!d.data.length){$('albumList').innerHTML='<div style="text-align:center;padding:20px;color:var(--dim);font-size:13px">ไม่พบอัลบั้ม</div>';return}
+    albumsData=d.data;
+    let h='';albumsData.forEach((a,i)=>{
+      const cover=a.cover_photo?.images?.[0]?.source||'';
+      const coverHtml=cover?`<img src="${cover}" class="album-cover" loading="lazy">`:`<div class="album-cover" style="display:flex;align-items:center;justify-content:center;font-size:22px">📁</div>`;
+      h+=`<div class="album-item" onclick="fetchAlbumPhotos('${a.id}','${a.name.replace(/'/g,"\\'")}')">
+        ${coverHtml}
+        <div style="flex:1"><div class="album-name">${a.name}</div><div class="album-count">${a.count||0} รูป</div></div>
+        <span style="color:var(--dim);font-size:14px">›</span>
+      </div>`;
+    });
+    $('albumList').innerHTML=h;
+  }catch(e){hide('browseLoading');show('browseError');$('browseError').textContent='❌ '+e.message}
+}
+
+async function fetchAlbumPhotos(albumId,albumName){
+  browseData=[];browseType='photos';browseNext=null;
+  $('browseList').innerHTML='';$('albumList').innerHTML=`<div style="padding:10px 14px;font-size:13px;font-weight:600;color:var(--accent)">📁 ${albumName}</div>`;
+  show('browseLoading');hide('browseMore');hide('browseActions');show('albumBack');
+  try{
+    const r=await fetch(`${FB}/${albumId}/photos?fields=id,name,created_time,images,link&limit=25&access_token=${TK}`);
+    const d=await r.json();hide('browseLoading');
+    if(d.error){show('browseError');$('browseError').textContent='❌ '+d.error.message;return}
+    if(!d.data||!d.data.length){$('browseList').innerHTML='<div style="text-align:center;padding:20px;color:var(--dim);font-size:13px">ไม่พบรูปในอัลบั้มนี้</div>';return}
+    browseData=d.data.map(p=>({...p,full_picture:p.images?.[0]?.source||'',selected:false}));
+    browseNext=d.paging?.next||null;
+    renderBrowse();if(browseNext)show('browseMore');show('browseActions');
+  }catch(e){hide('browseLoading');show('browseError');$('browseError').textContent='❌ '+e.message}
+}
+
+function backToAlbums(){
+  browseData=[];$('browseList').innerHTML='';hide('browseMore');hide('browseActions');hide('browseError');hide('albumBack');
+  fetchAlbums();
 }
 function parsePid(v){
   v=v.replace(/\s+/g,'');
@@ -463,10 +521,10 @@ const dz=$('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
 dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');addFiles(Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')))});
-function addFiles(fs){const rem=30-imgs.length;fs.slice(0,rem).forEach(f=>{imgs.push({file:f,preview:URL.createObjectURL(f),status:null,error:null})});renderThumbs();updEst()}
+function addFiles(fs){const rem=60-imgs.length;fs.slice(0,rem).forEach(f=>{imgs.push({file:f,preview:URL.createObjectURL(f),status:null,error:null})});renderThumbs();updEst()}
 function rmFile(i){if(imgs[i].status)return;URL.revokeObjectURL(imgs[i].preview);imgs.splice(i,1);renderThumbs();updEst()}
 function renderThumbs(){
-  $('imgBadge').textContent=imgs.length+' / 30';
+  $('imgBadge').textContent=imgs.length+' / 60';
   let h='';imgs.forEach((m,i)=>{let st='',bc='';
     if(m.status==='sending'){st='<div class="ts s-send"><span class="spinner"></span></div>';bc='sending'}
     else if(m.status==='ok'){st='<div class="ts s-ok">✓</div>';bc='ok'}
