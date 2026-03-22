@@ -125,6 +125,21 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
 .album-cover{width:50px;height:50px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#292524}
 .album-name{font-weight:600;font-size:13px;color:#d6d3d1}
 .album-count{font-size:11px;color:var(--muted)}
+
+/* Saved albums */
+.sa-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .2s;background:var(--bg)}
+.sa-item:hover{border-color:var(--accent);background:#f59e0b08}
+.sa-item.sa-active{border-color:var(--success);background:#22c55e08}
+.sa-thumbs{display:flex;gap:3px;flex-shrink:0}
+.sa-thumbs img{width:36px;height:36px;border-radius:6px;object-fit:cover}
+.sa-thumbs .sa-more{width:36px;height:36px;border-radius:6px;background:#292524;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);font-weight:700}
+.sa-info{flex:1;min-width:0}
+.sa-name{font-weight:600;font-size:14px;color:#d6d3d1}
+.sa-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.sa-actions{display:flex;gap:4px;flex-shrink:0}
+.sa-btn{width:28px;height:28px;border-radius:50%;border:none;background:0 0;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.sa-btn:hover{background:rgba(255,255,255,.08)}
+.sa-btn.del:hover{background:rgba(239,68,68,.15);color:#f87171}
 </style>
 </head>
 <body>
@@ -211,16 +226,41 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
 
 <!-- ═══ STEP 3 ═══ -->
 <div class="card hidden" id="card3">
-  <div class="card-head"><span>③ เลือกรูป</span><span class="badge badge-amber" id="imgBadge">0 / 60</span></div>
+  <div class="card-head"><span>③ เลือกรูปคอมเมนต์</span><span class="badge badge-amber" id="imgBadge">0 / 60</span></div>
   <div class="card-body">
-    <div class="upload-zone" id="dropZone">
-      <input type="file" id="fileInput" accept="image/*" multiple>
-      <div style="font-size:36px;margin-bottom:8px">🖼️</div>
-      <div style="font-weight:600;font-size:14px;color:#d6d3d1">คลิกเลือกรูป หรือลากไฟล์มาวาง</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">JPG, PNG, WEBP • สูงสุด 60 รูป • ใช้รูปชุดเดียวกับทุกโพสต์</div>
+    <!-- Source tabs -->
+    <div class="row mb" style="gap:6px">
+      <button class="btn-ghost" id="tabAlbum" onclick="switchImgTab('album')" style="flex:1;text-align:center;padding:10px;font-weight:700;border-color:var(--accent);color:var(--accent)">📁 อัลบั้มที่บันทึก</button>
+      <button class="btn-ghost" id="tabUpload" onclick="switchImgTab('upload')" style="flex:1;text-align:center;padding:10px">📤 อัพโหลดจากเครื่อง</button>
     </div>
+
+    <!-- Album panel -->
+    <div id="albumImgPanel">
+      <div id="savedAlbumList"></div>
+      <div id="noAlbums" style="text-align:center;padding:20px;color:var(--dim);font-size:13px">ยังไม่มีอัลบั้ม — ไปแท็บ "อัพโหลด" เพื่อสร้าง</div>
+    </div>
+
+    <!-- Upload panel -->
+    <div id="uploadImgPanel" class="hidden">
+      <!-- Album name -->
+      <div class="row mb" style="gap:8px">
+        <input type="text" id="albumNameInput" placeholder="ตั้งชื่ออัลบั้ม เช่น รีวิวสินค้า A" style="flex:1">
+        <button class="btn btn-primary" onclick="saveAlbum()" style="padding:10px 16px;font-size:13px" id="saveAlbumBtn">💾 บันทึก</button>
+      </div>
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <div style="font-size:36px;margin-bottom:8px">🖼️</div>
+        <div style="font-weight:600;font-size:14px;color:#d6d3d1">คลิกเลือกรูป หรือลากไฟล์มาวาง</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">JPG, PNG, WEBP • สูงสุด 60 รูป</div>
+      </div>
+    </div>
+
+    <!-- Thumbnails (shared) -->
     <div class="tg" id="thumbGrid"></div>
+    <div id="activeAlbumInfo" class="hidden" style="margin-top:10px;padding:8px 12px;background:#22c55e10;border-radius:8px;font-size:12px;color:var(--success);display:flex;align-items:center;gap:6px"></div>
   </div>
+
+  <!-- Settings -->
   <div style="padding:14px 18px;border-top:1px solid var(--border)">
     <div class="row mb">
       <span style="font-size:12px;color:var(--muted);font-weight:600">หน่วงเวลา:</span>
@@ -279,7 +319,7 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
     </div>
   </div>
 </div>
-<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v3.2 • อัลบั้ม + 60 รูป • ค้นหาจากเพจ</div>
+<div class="center" style="margin-top:20px;font-size:11px;color:var(--dim)">FB Auto Comment v4.0 • อัลบั้มรูป + 60 รูป • ค้นหาจากเพจ</div>
 
 <script>
 const FB='https://graph.facebook.com/v19.0';
@@ -515,13 +555,98 @@ function renderQueue(){
   updEst();
 }
 
-// ═══ STEP 3: Images ═══
+// ═══ STEP 3: Images + Albums (IndexedDB) ═══
+let idb=null;
+function openDB(){return new Promise((res,rej)=>{const rq=indexedDB.open('fb_albums',1);rq.onupgradeneeded=e=>{e.target.result.createObjectStore('albums',{keyPath:'id'})};rq.onsuccess=e=>{idb=e.target.result;res(idb)};rq.onerror=e=>rej(e)})}
+function dbPut(obj){return new Promise((res,rej)=>{const tx=idb.transaction('albums','readwrite');tx.objectStore('albums').put(obj);tx.oncomplete=()=>res();tx.onerror=e=>rej(e)})}
+function dbGetAll(){return new Promise((res,rej)=>{const tx=idb.transaction('albums','readonly');const rq=tx.objectStore('albums').getAll();rq.onsuccess=()=>res(rq.result);rq.onerror=e=>rej(e)})}
+function dbGet(id){return new Promise((res,rej)=>{const tx=idb.transaction('albums','readonly');const rq=tx.objectStore('albums').get(id);rq.onsuccess=()=>res(rq.result);rq.onerror=e=>rej(e)})}
+function dbDel(id){return new Promise((res,rej)=>{const tx=idb.transaction('albums','readwrite');tx.objectStore('albums').delete(id);tx.oncomplete=()=>res();tx.onerror=e=>rej(e)})}
+
+function switchImgTab(tab){
+  if(tab==='album'){show('albumImgPanel');hide('uploadImgPanel');$('tabAlbum').style.borderColor='var(--accent)';$('tabAlbum').style.color='var(--accent)';$('tabUpload').style.borderColor='#44403c';$('tabUpload').style.color='#a8a29e';loadAlbums()}
+  else{hide('albumImgPanel');show('uploadImgPanel');$('tabUpload').style.borderColor='var(--accent)';$('tabUpload').style.color='var(--accent)';$('tabAlbum').style.borderColor='#44403c';$('tabAlbum').style.color='#a8a29e'}
+}
+
+// File to base64 for storage
+function fileToB64(file){return new Promise(r=>{const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(file)})}
+function b64ToBlob(b64){const[header,data]=b64.split(',');const mime=header.match(/:(.*?);/)[1];const bin=atob(data);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return new Blob([arr],{type:mime})}
+
+// Save album
+async function saveAlbum(){
+  const name=$('albumNameInput').value.trim();
+  if(!name){alert('กรุณาตั้งชื่ออัลบั้ม');return}
+  if(!imgs.length){alert('กรุณาเลือกรูปก่อน');return}
+  $('saveAlbumBtn').textContent='กำลังบันทึก...';$('saveAlbumBtn').disabled=true;
+  try{
+    const images=[];
+    for(const img of imgs){
+      const b64=await fileToB64(img.file);
+      images.push({name:img.file.name,type:img.file.type,b64,preview:img.preview});
+    }
+    const album={id:'album_'+Date.now(),name,images,count:images.length,date:new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}),thumbs:images.slice(0,3).map(i=>i.b64)};
+    await dbPut(album);
+    $('albumNameInput').value='';
+    switchImgTab('album');
+  }catch(e){alert('บันทึกไม่ได้: '+e.message)}
+  $('saveAlbumBtn').textContent='💾 บันทึก';$('saveAlbumBtn').disabled=false;
+}
+
+// Load albums list
+let activeAlbumId=null;
+async function loadAlbums(){
+  try{
+    const albums=await dbGetAll();
+    if(!albums.length){$('savedAlbumList').innerHTML='';show('noAlbums');return}
+    hide('noAlbums');
+    let h='';albums.sort((a,b)=>b.id.localeCompare(a.id)).forEach(a=>{
+      const isActive=activeAlbumId===a.id;
+      const thumbsHtml=a.thumbs.map(t=>`<img src="${t}" loading="lazy">`).join('')+(a.count>3?`<span class="sa-more">+${a.count-3}</span>`:'');
+      h+=`<div class="sa-item ${isActive?'sa-active':''}" onclick="useAlbum('${a.id}')">
+        <div class="sa-thumbs">${thumbsHtml}</div>
+        <div class="sa-info"><div class="sa-name">${a.name}</div><div class="sa-meta">${a.count} รูป • ${a.date}</div></div>
+        <div class="sa-actions">
+          <button class="sa-btn del" onclick="event.stopPropagation();delAlbum('${a.id}')" title="ลบ">🗑</button>
+        </div>
+      </div>`;
+    });
+    $('savedAlbumList').innerHTML=h;
+  }catch(e){$('savedAlbumList').innerHTML='<div class="error-box">โหลดไม่ได้: '+e.message+'</div>'}
+}
+
+// Use album → load images into imgs[]
+async function useAlbum(id){
+  try{
+    const album=await dbGet(id);if(!album)return;
+    // Clear current
+    imgs.forEach(m=>URL.revokeObjectURL(m.preview));imgs=[];
+    // Convert b64 back to File objects
+    for(const img of album.images){
+      const blob=b64ToBlob(img.b64);
+      const file=new File([blob],img.name,{type:img.type});
+      const preview=URL.createObjectURL(blob);
+      imgs.push({file,preview,status:null,error:null});
+    }
+    activeAlbumId=id;
+    renderThumbs();updEst();loadAlbums();
+    $('activeAlbumInfo').innerHTML=`📁 ใช้อัลบั้ม: <strong>${album.name}</strong> (${album.count} รูป)`;
+    show('activeAlbumInfo');
+  }catch(e){alert('โหลดอัลบั้มไม่ได้: '+e.message)}
+}
+
+async function delAlbum(id){
+  if(!confirm('ลบอัลบั้มนี้?'))return;
+  await dbDel(id);
+  if(activeAlbumId===id){activeAlbumId=null;imgs.forEach(m=>URL.revokeObjectURL(m.preview));imgs=[];renderThumbs();hide('activeAlbumInfo')}
+  loadAlbums();
+}
+
 $('fileInput').addEventListener('change',function(e){addFiles(Array.from(e.target.files));this.value=''});
 const dz=$('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
 dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');addFiles(Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')))});
-function addFiles(fs){const rem=60-imgs.length;fs.slice(0,rem).forEach(f=>{imgs.push({file:f,preview:URL.createObjectURL(f),status:null,error:null})});renderThumbs();updEst()}
+function addFiles(fs){activeAlbumId=null;hide('activeAlbumInfo');const rem=60-imgs.length;fs.slice(0,rem).forEach(f=>{imgs.push({file:f,preview:URL.createObjectURL(f),status:null,error:null})});renderThumbs();updEst()}
 function rmFile(i){if(imgs[i].status)return;URL.revokeObjectURL(imgs[i].preview);imgs.splice(i,1);renderThumbs();updEst()}
 function renderThumbs(){
   $('imgBadge').textContent=imgs.length+' / 60';
@@ -644,7 +769,9 @@ function updStats(t){
   $('sOk').textContent=ok;$('sFail').textContent=fail;$('sPend').textContent=pend;
 }
 
+// ═══ Init ═══
 renderSteps();renderPgs(getPages());
+openDB().then(()=>loadAlbums()).catch(e=>console.warn('IndexedDB:',e));
 </script>
 </body>
 </html>
