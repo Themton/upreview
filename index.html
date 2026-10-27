@@ -773,5 +773,42 @@ function updStats(t){
 renderSteps();renderPgs(getPages());
 openDB().then(()=>loadAlbums()).catch(e=>console.warn('IndexedDB:',e));
 </script>
+
+<script>
+// ADS FB handoff carries public post identifiers only, never access tokens.
+let adsfbImport=[];
+function readAdsfbImport(){
+ if(!location.hash.startsWith('#adsfb='))return;
+ const panel=document.createElement('section');panel.className='card';panel.style.padding='20px';
+ const title=document.createElement('h2');title.textContent='โพสต์จาก ADS FB';panel.append(title);
+ const msg=document.createElement('p');msg.textContent='เลือกเพจเพื่อเพิ่มโพสต์เข้าคิว จากนั้นเลือกรูปและตรวจรายการก่อนกดเริ่ม';panel.append(msg);
+ try{
+ const raw=location.hash.slice(7);if(raw.length>150000)throw Error('รายการใหญ่เกินไป');
+ const d=JSON.parse(decodeURIComponent(raw));if(d.version!==1||!Array.isArray(d.posts)||!d.posts.length||d.posts.length>100)throw Error('รูปแบบรายการไม่ถูกต้อง');
+ const unique=new Map();
+ for(const p of d.posts){if(typeof p.storyId!=='string'||!/^\d+_\d+$/.test(p.storyId)||typeof p.pageId!=='string'||p.storyId.split('_')[0]!==p.pageId)throw Error('ID เพจไม่ตรงกับโพสต์');unique.set(p.storyId,{storyId:p.storyId,pageId:p.pageId,pageName:String(p.pageName||'').slice(0,200)});}
+ adsfbImport=[...unique.values()];
+ history.replaceState(null,'',location.pathname+location.search);
+ for(const id of new Set(adsfbImport.map(p=>p.pageId))){
+ const posts=adsfbImport.filter(p=>p.pageId===id);
+ const label=document.createElement('p');label.textContent=(posts[0].pageName||'เพจ')+' · '+id+' · '+posts.length+' โพสต์';panel.append(label);
+ const ids=document.createElement('pre');ids.textContent=posts.map(p=>p.storyId).join('\n');panel.append(ids);
+ const button=document.createElement('button');button.className='btn-primary';button.textContent='เพิ่มโพสต์ของเพจนี้เข้าคิว';
+ button.onclick=async()=>{
+ if(RUNNING){msg.textContent='กรุณารอให้การส่งปัจจุบันจบก่อน';return;}
+ if(!PG||String(PG.id)!==id){msg.textContent='เชื่อมต่อเพจ '+(posts[0].pageName||id)+' (ID '+id+') ในช่องเชื่อมต่อเพจด้านล่างก่อน';return;}
+ if(queue.some(q=>!q.id.startsWith(id+'_'))){msg.textContent='มีโพสต์เพจอื่นอยู่ในคิว กรุณาล้างคิวก่อน';return;}
+ button.disabled=true;let added=0,failed=0;
+ try{for(const p of posts){if(queue.some(q=>q.id===p.storyId))continue;if(await verifyPid(p.storyId)){queue.push({id:p.storyId,status:'wait',ok:0,fail:0});added++;}else failed++;}
+ renderQueue();if(queue.length){STEP=3;renderSteps();show('card3');}
+ msg.textContent='เพิ่ม '+added+' โพสต์ · อ่านไม่ได้ '+failed+' โพสต์ — เลือกรูปและตรวจคิวก่อนกดเริ่ม';
+ }finally{button.disabled=false;}
+ };panel.append(button);
+ }
+ }catch(e){msg.textContent='นำเข้ารายการไม่ได้: '+e.message;}
+ const root=document.querySelector('#card1');root.parentNode.insertBefore(panel,root);
+}
+readAdsfbImport();
+</script>
 </body>
 </html>
