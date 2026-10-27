@@ -675,6 +675,7 @@ function updEst(){
 async function cd(sec,label){show('cdBar');for(let i=sec;i>0;i--){if(STOP)break;$('cdBar').textContent=`🛡️ ${label||'พักอัตโนมัติ'} — รอ ${i} วินาที...`;await sl(1000)}hide('cdBar')}
 
 async function doStart(){
+  if(!PG||queue.some(q=>q.status==='wait'&&!q.id.startsWith(String(PG.id)+'_'))){alert('เพจที่เชื่อมไม่ตรงกับโพสต์ในคิว กรุณาตรวจเพจและโพสต์ก่อนส่ง');return;}
   const pending=queue.filter(q=>q.status==='wait');
   if(!pending.length||!imgs.length||RUNNING)return;
   RUNNING=true;STOP=false;logs=[];globalImgIdx=0;
@@ -799,7 +800,7 @@ function readAdsfbImport(){
  if(!PG||String(PG.id)!==id){msg.textContent='เชื่อมต่อเพจ '+(posts[0].pageName||id)+' (ID '+id+') ในช่องเชื่อมต่อเพจด้านล่างก่อน';return;}
  if(queue.some(q=>!q.id.startsWith(id+'_'))){msg.textContent='มีโพสต์เพจอื่นอยู่ในคิว กรุณาล้างคิวก่อน';return;}
  button.disabled=true;let added=0,failed=0;
- try{for(const p of posts){if(queue.some(q=>q.id===p.storyId))continue;if(await verifyPid(p.storyId)){queue.push({id:p.storyId,status:'wait',ok:0,fail:0});added++;}else failed++;}
+ try{for(const p of posts){if(queue.some(q=>q.id===p.storyId))continue;if(await verifyPid(p.storyId)){if(!PG||String(PG.id)!==id){msg.textContent='เพจเปลี่ยนระหว่างตรวจสอบ กรุณาเลือกเพจใหม่';return;}queue.push({id:p.storyId,status:'wait',ok:0,fail:0});added++;}else failed++;}
  renderQueue();if(queue.length){STEP=3;renderSteps();show('card3');}
  msg.textContent='เพิ่ม '+added+' โพสต์ · อ่านไม่ได้ '+failed+' โพสต์ — เลือกรูปและตรวจคิวก่อนกดเริ่ม';
  }finally{button.disabled=false;}
