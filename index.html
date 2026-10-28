@@ -870,10 +870,11 @@ if(window.opener){
 
 </script>
 <script>
-if(new URLSearchParams(location.search).get('export')==='adsfb'&&window.opener){
+if((new URLSearchParams(location.search).get('export')==='adsfb'&&window.opener)||(new URLSearchParams(location.search).get('export')==='adsfb-background'&&window.parent!==window)){
+ const albumRecipient=window.opener||window.parent;
  (async()=>{try{
  await openDB();const albums=await dbGetAll();const mapping=LS.get('adsfb_page_albums')||{};
- window.opener.postMessage({type:'ADSFB_ALBUM_EXPORT',albums:albums.map(a=>({id:a.id,name:a.name,images:a.images.map(i=>({name:i.name,type:i.type,b64:i.b64}))})),mapping},'https://ads.themt.in.th');
+ albumRecipient.postMessage({type:'ADSFB_ALBUM_EXPORT',albums:albums.map(a=>({id:a.id,name:a.name,images:a.images.map(i=>({name:i.name,type:i.type,b64:i.b64}))})),mapping},'https://ads.themt.in.th');
  autoStatus('ส่งอัลบั้มไปยัง ADS FB แล้ว กลับไปหน้า ADS FB เพื่อเลือกอัลบั้มและเริ่มงาน ไม่ได้ส่งโทเค็นหรือคอมเมนต์');
  }catch(e){autoStatus('นำเข้าอัลบั้มไม่ได้: '+e.message)}})();
 }
