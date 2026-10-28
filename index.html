@@ -264,12 +264,12 @@ code{background:#292524;padding:1px 6px;border-radius:4px;color:var(--accent);fo
   <div style="padding:14px 18px;border-top:1px solid var(--border)">
     <div class="row mb">
       <span style="font-size:12px;color:var(--muted);font-weight:600">หน่วงเวลา:</span>
-      <input type="range" min="3" max="60" value="8" id="delayR" oninput="updDelay()" class="flex1" style="accent-color:var(--accent)">
+      <input type="range" min="3" max="60" value="3" id="delayR" oninput="updDelay()" class="flex1" style="accent-color:var(--accent)">
       <span id="delayV" style="background:#f59e0b18;color:var(--accent);padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;min-width:44px;text-align:center">8s</span>
     </div>
     <div class="trow">
       <div><div class="tlabel">🛡️ เซฟโหมด (แนะนำ)</div><div class="tsub">สุ่มเวลา + พักทุก 10 รูป + พักระหว่างโพสต์</div></div>
-      <label class="tg-wrap"><input type="checkbox" id="safeMode" checked><span class="sl"></span></label>
+      <label class="tg-wrap"><input type="checkbox" id="safeMode"><span class="sl"></span></label>
     </div>
     <div class="safe-card" id="safeBox">
       <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px">🛡️ เซฟโหมดจะทำ:</div>
@@ -586,6 +586,7 @@ async function saveAlbum(){
     }
     const album={id:'album_'+Date.now(),name,images,count:images.length,date:new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}),thumbs:images.slice(0,3).map(i=>i.b64)};
     await dbPut(album);
+    rememberPageAlbum(album.id);
     $('albumNameInput').value='';
     switchImgTab('album');
   }catch(e){alert('บันทึกไม่ได้: '+e.message)}
@@ -628,6 +629,7 @@ async function useAlbum(id){
       imgs.push({file,preview,status:null,error:null});
     }
     activeAlbumId=id;
+    rememberPageAlbum(id);
     renderThumbs();updEst();loadAlbums();
     $('activeAlbumInfo').innerHTML=`📁 ใช้อัลบั้ม: <strong>${album.name}</strong> (${album.count} รูป)`;
     show('activeAlbumInfo');
@@ -720,7 +722,7 @@ async function doStart(){
       imgs[ii].status='sending';renderThumbs();
       show('sendInd');$('sendTxt').textContent=`โพสต์ ${qi+1}/${queue.length} • รูปที่ ${ii+1}/${imgs.length}`;
 
-      const jitter=safe?rnd(3000,8000):rnd(1000,3000);
+      const jitter=safe?rnd(3000,8000):0;
       await sl(base+jitter);if(STOP)break;
 
       let entry;
@@ -752,7 +754,7 @@ async function doStart(){
   renderQueue();
 }
 
-function doStop(){STOP=true;RUNNING=false;hide('sendInd');hide('cdBar');hide('stopBtn');show('startBtn');
+function doStop(){adsAutoCancel=true;STOP=true;hide('sendInd');hide('cdBar');hide('stopBtn');show('startBtn');
   queue.forEach(q=>{if(q.status==='running')q.status='fail'});renderQueue()}
 
 function addLog(e){
@@ -810,6 +812,62 @@ function readAdsfbImport(){
  const root=document.querySelector('#card1');root.parentNode.insertBefore(panel,root);
 }
 readAdsfbImport();
+</script>
+<script>
+// Only a live ADS FB window can request automatic execution. URL imports remain manual.
+let adsAutoBusy=false,adsAutoCancel=false;
+function rememberPageAlbum(id){if(PG&&id){const m=LS.get('adsfb_page_albums')||{};m[String(PG.id)]=id;LS.set('adsfb_page_albums',m);}}
+function autoStatus(text){let box=document.getElementById('adsAutoStatus');if(!box){box=document.createElement('section');box.id='adsAutoStatus';box.className='card';box.style.padding='20px';box.setAttribute('role','status');document.querySelector('#card1').before(box);}box.textContent=text;}
+async function runAdsAuto(job){
+ if(adsAutoBusy||RUNNING){autoStatus('มีงานกำลังทำงานอยู่ กรุณารอให้เสร็จ');return;}
+ if(!job||typeof job.runId!=='string'||!/^[-a-zA-Z0-9]{16,80}$/.test(job.runId)||!Array.isArray(job.posts)||!job.posts.length||job.posts.length>100)throw Error('รายการไม่ถูกต้อง');
+ const unique=new Map();for(const p of job.posts){if(!p||typeof p.storyId!=='string'||!/^\d+_\d+$/.test(p.storyId)||p.storyId.split('_')[0]!==p.pageId)throw Error('ID เพจไม่ตรงกับโพสต์');unique.set(p.storyId,p);}
+ if(!navigator.locks)throw Error('เบราว์เซอร์นี้ไม่รองรับการป้องกันงานซ้ำ');
+ await navigator.locks.request('adsfb-auto-review',{ifAvailable:true},async lock=>{
+ if(!lock)throw Error('มีงานรีวิวทำงานในแท็บอื่นอยู่');
+ const done=LS.get('adsfb_auto_jobs')||[];if(done.includes(job.runId))throw Error('งานนี้เริ่มไปแล้ว ไม่ส่งซ้ำอัตโนมัติ');
+ adsAutoBusy=true;adsAutoCancel=false;
+ const controls=[...document.querySelectorAll('button,input,select,textarea')].filter(e=>e.id!=='stopBtn');const previous=controls.map(e=>e.disabled);controls.forEach(e=>e.disabled=true);
+ try{
+ autoStatus('กำลังตรวจเพจและอัลบั้มล่าสุด · หน่วง 3 วินาที · เซฟโหมดปิด');show('stopBtn');$('stopBtn').disabled=false;
+ await openDB();const mapping=LS.get('adsfb_page_albums')||{},saved=getPages();const batches=[];
+ // Preflight every page before any comment is sent.
+ for(const pageId of new Set([...unique.values()].map(p=>p.pageId))){
+ if(adsAutoCancel)throw Error('ยกเลิกแล้ว');
+ const pg=saved.find(p=>String(p.id)===pageId);if(!pg)throw Error('ยังไม่ได้เชื่อมเพจ '+pageId+' ในเบราว์เซอร์นี้');
+ const album=mapping[pageId]?await dbGet(mapping[pageId]):null;if(!album?.images?.length)throw Error('เพจ '+pg.name+' ยังไม่มีอัลบั้มล่าสุด กรุณาเลือกอัลบั้มให้เพจนี้ครั้งแรก');
+ const response=await fetch(FB+'/me?fields=id',{headers:{Authorization:'Bearer '+pg.token}});const identity=await response.json();if(identity.error||String(identity.id)!==pageId)throw Error('สิทธิ์เชื่อมต่อเพจ '+pg.name+' ใช้งานไม่ได้');
+ const posts=[...unique.values()].filter(p=>p.pageId===pageId);
+ for(const p of posts){const response=await fetch(FB+'/'+p.storyId+'?fields=id',{headers:{Authorization:'Bearer '+pg.token}});const result=await response.json();if(result.error||!result.id)throw Error('อ่านโพสต์ '+p.storyId+' ไม่ได้');}
+ const images=album.images.map(i=>({file:new File([b64ToBlob(i.b64)],i.name,{type:i.type}),preview:i.b64,status:null,error:null}));
+ batches.push({pg,album,posts,images});
+ }
+ if(adsAutoCancel)throw Error('ยกเลิกแล้ว');
+ LS.set('adsfb_auto_jobs',[...done,job.runId].slice(-200));let successes=0,failures=0;
+ for(const batch of batches){
+ if(adsAutoCancel)break;
+ PG=batch.pg;TK=batch.pg.token;queue=batch.posts.map(p=>({id:p.storyId,status:'wait',ok:0,fail:0}));imgs=batch.images;activeAlbumId=batch.album.id;
+ $('pgName').textContent=PG.name;$('pgId').textContent='ID: '+PG.id;hide('tokenForm');show('pageBox');show('card2');show('card3');STEP=3;renderSteps();renderQueue();renderThumbs();
+ $('delayR').value='3';$('safeMode').checked=false;hide('safeBox');updDelay();
+ autoStatus('กำลังส่งรีวิว: '+PG.name+' · '+batch.posts.length+' โพสต์ · อัลบั้ม '+batch.album.name+' · 3 วินาที / เซฟโหมดปิด');
+ $('stopBtn').disabled=false;await doStart();successes+=queue.reduce((n,q)=>n+q.ok,0);failures+=queue.reduce((n,q)=>n+q.fail,0);
+ if(STOP){adsAutoCancel=true;break;}
+ }
+ autoStatus((adsAutoCancel?'หยุดงานแล้ว':'งานรีวิวเสร็จแล้ว')+' · สำเร็จ '+successes+' รูป · ไม่สำเร็จ '+failures+' รูป');
+ }finally{adsAutoBusy=false;hide('stopBtn');controls.forEach((e,i)=>e.disabled=previous[i]);}
+ });
+}
+hide('safeBox');updDelay();
+autoStatus('พร้อมรับงานจาก ADS FB · หน่วง 3 วินาที · เซฟโหมดปิด · เลือกหรือบันทึกอัลบั้มให้แต่ละเพจครั้งแรก ระบบจะจำชุดล่าสุดในเบราว์เซอร์นี้');
+if(window.opener){
+ const sender=window.opener;
+ window.addEventListener('message',event=>{
+ if(event.origin!=='https://ads.themt.in.th'||event.source!==sender||event.data?.type!=='ADSFB_REVIEW_RUN')return;
+ runAdsAuto(event.data).catch(e=>autoStatus('ยังไม่เริ่ม/หยุดงาน: '+e.message));
+ });
+ sender.postMessage({type:'ADSFB_REVIEW_READY'},'https://ads.themt.in.th');
+}
+
 </script>
 </body>
 </html>
